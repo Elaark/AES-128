@@ -1,6 +1,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+// CONST
+
 static const __uint8_t sbox[256] = {	0x63, 0x7c, 0x77, 0x7b, 0xf2, 0x6b, 0x6f, 0xc5, 0x30, 0x01, 0x67, 0x2b, 0xfe, 0xd7, 0xab, 0x76,
 								0xca, 0x82, 0xc9, 0x7d, 0xfa, 0x59, 0x47, 0xf0, 0xad, 0xd4, 0xa2, 0xaf, 0x9c, 0xa4, 0x72, 0xc0,
 								0xb7, 0xfd, 0x93, 0x26, 0x36, 0x3f, 0xf7, 0xcc, 0x34, 0xa5, 0xe5, 0xf1, 0x71, 0xd8, 0x31, 0x15,
@@ -17,27 +19,57 @@ static const __uint8_t sbox[256] = {	0x63, 0x7c, 0x77, 0x7b, 0xf2, 0x6b, 0x6f, 0
 								0x70, 0x3e, 0xb5, 0x66, 0x48, 0x03, 0xf6, 0x0e, 0x61, 0x35, 0x57, 0xb9, 0x86, 0xc1, 0x1d, 0x9e,
 								0xe1, 0xf8, 0x98, 0x11, 0x69, 0xd9, 0x8e, 0x94, 0x9b, 0x1e, 0x87, 0xe9, 0xce, 0x55, 0x28, 0xdf,
 								0x8c, 0xa1, 0x89, 0x0d, 0xbf, 0xe6, 0x42, 0x68, 0x41, 0x99, 0x2d, 0x0f, 0xb0, 0x54, 0xbb, 0x16
-	};
+};
 
+const unsigned char rcon_table[11] = {
+    0x00, 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1b, 0x36
+};
 
-void AddRoundKeys() {
+// DEBUG / PRINT FUNCTIONS
 
+void print_key(const __uint8_t *key) {
+    printf("--- AES-128 Key ---\n");
+	printf("Key : ");
+    for (int i = 0; i < 16; i++) {
+        printf("%02x ", key[i]);
+    }
+        printf("\n");
+    printf("-------------------\n");
+    printf("\n");
 }
 
-void SubBytes() {
-
+void print_round_keys(const __uint8_t *round_keys) {
+    printf("--- AES-128 Round Keys ---\n");
+    for (int round = 0; round <= 10; round++) {
+        printf("Round %2d : ", round);
+        for (int i = 0; i < 16; i++) {
+            // %02x prints in hexadecimal with 2 characters (e.g., 0a instead of a)
+            printf("%02x ", round_keys[round * 16 + i]);
+        }
+        printf("\n");
+    }
+    printf("--------------------------\n");
+    printf("\n");
 }
 
-void MixColumns() {
-
+void print_hex(const char *label, const __uint8_t *data) {
+    printf("%-20s: ", label);
+    for (int i = 0; i < 16; i++) {
+        printf("%02x ", data[i]);
+    }
+    printf("\n");
 }
 
-
-void ShiftRows() {
-
+void print_state_ascii(const __uint8_t *state) {
+	printf("State : ");
+    for (int i = 0; i < 16; i++) {
+        printf("%c ", state[i]);
+    }
+    printf("\n");
+    printf("\n");
 }
 
-
+// KEY EXPANSION FUNCTION
 
 void RotWord(__uint8_t word[4]) {
 
@@ -46,8 +78,6 @@ void RotWord(__uint8_t word[4]) {
     word[1] = word[2];
     word[2] = word[3];
     word[3] = k;
-
-	return ;
 }
 
 void Subword(__uint8_t word[4]) {
@@ -56,8 +86,55 @@ void Subword(__uint8_t word[4]) {
 	word[1] = sbox[word[1]];
 	word[2] = sbox[word[2]];
 	word[3] = sbox[word[3]];
-	return ;
 }
+
+void AddRoundKey(__uint8_t state[16], const __uint8_t *round_key) {
+    for (int i = 0; i < 16; i++) {
+        state[i] ^= round_key[i];
+    }
+}
+
+void SubBytes(__uint8_t state[16]) {
+
+	for (int i = 0; i < 16; i++) {
+		state[i] = sbox[state[i]];
+	}
+}
+
+void ShiftRows(__uint8_t state[16]) {
+
+	__uint8_t temp;
+
+    // Line 0 > nothing
+
+    // Line 1 > swap 1
+    temp = state[1];
+    state[1] = state[5];
+    state[5] = state[9];
+    state[9] = state[13];
+    state[13] = temp;
+
+    // Line 2 > swap 2
+    temp = state[2];
+    state[2] = state[10];
+    state[10] = temp;
+    
+    temp = state[6];
+    state[6] = state[14];
+    state[14] = temp;
+
+    // Line 3> swap 3
+    temp = state[15];
+    state[15] = state[11];
+    state[11] = state[7];
+    state[7] = state[3];
+    state[3] = temp;
+}
+
+
+void MixColumns(__uint8_t state[16]) {
+}
+
 
 void InvMixColumns() {
 
@@ -71,83 +148,135 @@ void InvSubBytes() {
 
 }
 
-void KeyExpansion(const __uint8_t k[32], __uint8_t *round_keys, int Nk) {
+void KeyExpansion(const __uint8_t k[16], __uint8_t *round_keys) {
 
-
-	int total_bytes = (Nk + 7) * 16;
-
-	for (int i = 0; i < Nk * 4; i++) {
+	for (int i = 0; i < 16; i++) {
         round_keys[i] = k[i];
     }
 
 	__uint8_t tmp[4];
-    int bytes_generated = Nk * 4;
-    int rcon_iteration = 0;
+    int bytes_generated = 16;
+    int rcon_iteration = 1;
 
-	while (bytes_generated < total_bytes) {
+	while (bytes_generated < 176) {
 
 		for (int i = 0; i < 4; i++) {
 			tmp[i] = round_keys[bytes_generated - 4 + i];
 		}
 
-		if (bytes_generated % (Nk * 4) == 0) 
-
-			//Subword
-			Subword(tmp);
+		if (bytes_generated % 16 == 0)  {
 
 			//RotWord
 			RotWord(tmp);
-			
-			//
+			//Subword
+			Subword(tmp);
+			//Rcon
+			tmp[0] ^= rcon_table[rcon_iteration]; // Rcon XOR
+			rcon_iteration++;
 		}
+
 		for (int i = 0; i < 4; i++) {
-            round_keys[bytes_generated + i] = tmp[i];
+            round_keys[bytes_generated + i] = round_keys[bytes_generated - 16 + i] ^ tmp[i];
         }
+
         bytes_generated += 4;
+	}
 }
 
-void AESEncrypt(__uint8_t plaintext[16], const __uint8_t k[32], int Nk, int Nb, int Nr) {
 
-	__uint8_t in[4 * Nb];
-	__uint8_t out[4 * Nb];
-	__uint8_t word[4 * Nb *(Nr + 1)];
+void AESEncrypt(__uint8_t state[16], const __uint8_t k[16]) {
 
-	__uint8_t *state = plaintext;
+	__uint8_t word[176];
 
-	KeyExpansion(k, word, Nr);
+	print_key(k);
 
-	// AddRoundKey(state, word[0, Nb-1]) // See Sec. 5.1.4
-	// for round = 1 step 1 to Nr–1 {
-	// 	SubBytes(state) // See Sec. 5.1.1
-	// 	ShiftRows(state) // See Sec. 5.1.2
-	// 	MixColumns(state) // See Sec. 5.1.3
-	// 	AddRoundKey(state, w[round*Nb, (round+1)*Nb-1])
-	// }
-	// SubBytes(state)
-	// ShiftRows(state)
-	// AddRoundKey(state, w[Nr*Nb, (Nr+1)*Nb-1])
+	KeyExpansion(k, word);
+
+	print_round_keys(word);
+
+	AddRoundKey(state, &word[0]);
+
+	for (int i = 1; i <= 9; i++) {
+		SubBytes(state);
+	 	ShiftRows(state);
+	 	MixColumns(state);
+	 	AddRoundKey(state, &word[i * 16]);
+	}
+
+	SubBytes(state);
+	ShiftRows(state);
+	AddRoundKey(state, &word[10 * 16]);
+
 }
 
 int main(int argc, char **argv) {
-	if (argc != 2)
-		return (1);
 
+	(void)argc;
+    (void)argv;
 
 	__uint8_t plaintext[16] = "ABCDEF0123456789";
 	__uint8_t ciphertext[16];
 
-	const __uint8_t k[32] = {
-    0x2B, 0x7E, 0x15, 0x16, 0x28, 0xAE, 0xD2, 0xA6,
-    0xAB, 0xF7, 0x15, 0x88, 0x09, 0xCF, 0x4F, 0x3C,
-    0x2B, 0x7E, 0x15, 0x16, 0x28, 0xAE, 0xD2, 0xA6,
-    0xAB, 0xF7, 0x15, 0x88, 0x09, 0xCF, 0x4F, 0x3C
-	}; // Key test
-
-	int key_length = 256;
-	int Nk = 8;		// To set after just for testing now
-	int Nb = 4;		// always 4 for AES
-	int Nr = 14;	// To set after just for testing now
+	// Test key (16 octets) (128 bits)
+	const __uint8_t k[16] = {
+        0x2B, 0x7E, 0x15, 0x16, 0x28, 0xAE, 0xD2, 0xA6,
+        0xAB, 0xF7, 0x15, 0x88, 0x09, 0xCF, 0x4F, 0x3C
+    };
 
 	// CYPHER
-	AESEncrypt(plaintext, k, Nk, Nb, Nr);
+	AESEncrypt(plaintext, k);
 }
+
+// int main(void) {
+//     // 1. Vecteurs de test officiels NIST pour AES-128
+//     const __uint8_t key[16] = {
+//         0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6,
+//         0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf, 0x4f, 0x3c
+//     };
+
+//     const __uint8_t plaintext[16] = {
+//         0x32, 0x43, 0xf6, 0xa8, 0x88, 0x5a, 0x30, 0x8d,
+//         0x31, 0x31, 0x98, 0xa2, 0xe0, 0x37, 0x07, 0x34
+//     };
+
+//     const __uint8_t expected_ciphertext[16] = {
+//         0x39, 0x25, 0x84, 0x1d, 0x02, 0xdc, 0x09, 0xfb,
+//         0xdc, 0x11, 0x85, 0x97, 0x19, 0x6a, 0x0b, 0x32
+//     };
+
+//     // 2. Préparation de l'état (state)
+//     // On copie le plaintext dans 'state' car notre fonction AESEncrypt
+//     // modifie le tableau directement en place (in-place).
+//     __uint8_t state[16];
+//     for (int i = 0; i < 16; i++) {
+//         state[i] = plaintext[i];
+//     }
+
+//     print_hex("Clé", key);
+//     print_hex("Plaintext initial", plaintext);
+//     printf("------------------------------------------------------------\n");
+
+//     // 3. Exécution du chiffrement
+//     AESEncrypt(state, key);
+
+//     // 4. Affichage et Comparaison
+//     printf("------------------------------------------------------------\n");
+//     print_hex("Ciphertext obtenu", state);
+//     print_hex("Ciphertext attendu", expected_ciphertext);
+
+//     int success = 1;
+//     for (int i = 0; i < 16; i++) {
+//         if (state[i] != expected_ciphertext[i]) {
+//             success = 0;
+//             break;
+//         }
+//     }
+
+//     if (success) {
+//         printf("\n✅ SUCCÈS : L'implémentation AES-128 est conforme au standard NIST !\n");
+//     } else {
+//         printf("\n❌ ÉCHEC : Le résultat diffère. Il y a une erreur dans l'une des opérations.\n");
+//     }
+
+//     return 0;
+// }
