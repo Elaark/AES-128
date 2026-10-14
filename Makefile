@@ -13,7 +13,7 @@ DEP_DIR         =   ${BUILD_DIR}/dep
 ######  SOURCES  ######
 #######################
 
-SRCS            =   main.c AESEncrypt.c
+SRCS            =   main.c AESEncrypt.c AESDecrypt.c AESFunctions.c
 
 ###########################
 ######  COMPILATION  ######

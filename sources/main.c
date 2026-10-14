@@ -1,72 +1,97 @@
 #include "../includes/main.h"
+#include "../includes/AESEncrypt.h"
+#include "../includes/AESDecrypt.h"
 
-// int main(int argc, char **argv) {
+#include "../includes/main.h"
+#include "../includes/AESEncrypt.h"
+#include "../includes/AESDecrypt.h"
 
-// 	(void)argc;
-//     (void)argv;
+size_t ft_strlen(char *str) {
+    if (!str)
+        return (0);
+    int i = 0;
+    while (str && str[i])
+        i++;
+    return (i);
+}
 
-// 	__uint8_t plaintext[16] = "ABCDEF0123456789";
-// 	__uint8_t ciphertext[16];
+uint8_t hex_char_to_val(char c) {
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    return 0;
+}
 
-// 	// Test key (16 octets) (128 bits)
-// 	const __uint8_t k[16] = {
-//         0x2B, 0x7E, 0x15, 0x16, 0x28, 0xAE, 0xD2, 0xA6,
-//         0xAB, 0xF7, 0x15, 0x88, 0x09, 0xCF, 0x4F, 0x3C
-//     };
-
-// 	// CYPHER
-// 	AESEncrypt(plaintext, k);
-// }
-
-int main(void) {
-    // 1. Vecteurs de test officiels NIST pour AES-128
-    const __uint8_t key[16] = {
-        0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6,
-        0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf, 0x4f, 0x3c
-    };
-
-    const __uint8_t plaintext[16] = {
-        0x32, 0x43, 0xf6, 0xa8, 0x88, 0x5a, 0x30, 0x8d,
-        0x31, 0x31, 0x98, 0xa2, 0xe0, 0x37, 0x07, 0x34
-    };
-
-    const __uint8_t expected_ciphertext[16] = {
-        0x39, 0x25, 0x84, 0x1d, 0x02, 0xdc, 0x09, 0xfb,
-        0xdc, 0x11, 0x85, 0x97, 0x19, 0x6a, 0x0b, 0x32
-    };
-
-    // 2. Préparation de l'état (state)
-    // On copie le plaintext dans 'state' car notre fonction AESEncrypt
-    // modifie le tableau directement en place (in-place).
-    __uint8_t state[16];
+void parse_hex_key(const char *hex_string, uint8_t key[16]) {
     for (int i = 0; i < 16; i++) {
-        state[i] = plaintext[i];
+        key[i] = (hex_char_to_val(hex_string[2 * i]) << 4) | 
+                  hex_char_to_val(hex_string[2 * i + 1]);
+    }
+}
+
+int generate_random_iv(uint8_t iv[16]) {
+    int fd = open("/dev/urandom", O_RDONLY);
+    if (fd < 0) {
+        perror("Can't open /dev/urandom");
+        return 0;
+    }
+    
+    ssize_t bytes_read = read(fd, iv, 16);
+    close(fd);
+    
+    return (bytes_read == 16);
+}
+
+int print_usage(void) {
+    printf("Usage : ./AES -option file key_hex\n");
+    printf("-e : cipher\n-d : decipher\n");
+    printf("key_hex : 32 hexadecimal characters (128 bits key)\n");
+    return 1;
+}
+
+int main(int argc, char **argv) {
+    
+    if (argc < 4 || ft_strlen(argv[1]) != 2 || argv[1][0] != '-' || 
+        (argv[1][1] != 'e' && argv[1][1] != 'd')) {
+        return print_usage();
+    }
+    
+    if (ft_strlen(argv[3]) != 32) {
+        printf("Error : Key must be exactly 32 characters long (16 octets).\n");
+        return 1;
     }
 
-    print_hex("Clé", key);
-    print_hex("Plaintext initial", plaintext);
-    printf("------------------------------------------------------------\n");
-
-    // 3. Exécution du chiffrement
-    AESEncrypt(state, key);
-
-    // 4. Affichage et Comparaison
-    printf("------------------------------------------------------------\n");
-    print_hex("Ciphertext obtenu", state);
-    print_hex("Ciphertext attendu", expected_ciphertext);
-
-    int success = 1;
-    for (int i = 0; i < 16; i++) {
-        if (state[i] != expected_ciphertext[i]) {
-            success = 0;
-            break;
+    uint8_t key[16];
+    parse_hex_key(argv[3], key);
+    
+    char arg = argv[1][1];
+    char *filename = argv[2];
+    char out_filename[256];
+    
+    if (arg == 'e') {
+        snprintf(out_filename, sizeof(out_filename), "%s.enc", filename);
+        
+        uint8_t iv[16];
+        if (!generate_random_iv(iv)) {
+            printf("Error : IV generation failed.\n");
+            return 1;
         }
-    }
 
-    if (success) {
-        printf("\n✅ SUCCÈS : L'implémentation AES-128 est conforme au standard NIST !\n");
-    } else {
-        printf("\n❌ ÉCHEC : Le résultat diffère. Il y a une erreur dans l'une des opérations.\n");
+        if (encrypt_file_cbc(filename, out_filename, key, iv)) {
+            printf("Cipher done.\n");
+        } else {
+            printf("Error when ciphering file.\n");
+        }
+    } else if (arg == 'd') {
+
+        snprintf(out_filename, sizeof(out_filename), "%s.dec", filename);
+        
+        if (decrypt_file_cbc(filename, out_filename, key)) {
+            printf("Decipher done.\n");
+        } 
+        else {
+            printf("Error when deciphering file.\n");
+        }
     }
 
     return 0;
