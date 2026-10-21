@@ -1,5 +1,7 @@
 #include "AESFunctions.h"
 
+#include <unistd.h>
+
 // CONST
 
 static const uint8_t sbox[256] = {	
@@ -165,7 +167,7 @@ static uint8_t multiply_by_3(uint8_t x) {
     return xtime(x) ^ x;
 }
 
-uint8_t gf_mul(uint8_t a, uint8_t b) {
+static uint8_t gf_mul(uint8_t a, uint8_t b) {
 
     uint8_t result = 0;
 
@@ -298,4 +300,19 @@ void xor_block(uint8_t *state, const uint8_t *iv) {
     for (int i = 0; i < 16; i++) {
         state[i] ^= iv[i];
     }
+}
+
+// Reads until 16 bytes or EOF, so short reads (pipes) don't split blocks
+ssize_t read_block(int fd, uint8_t block[16]) {
+    ssize_t total = 0;
+
+    while (total < 16) {
+        ssize_t n = read(fd, block + total, 16 - total);
+        if (n < 0)
+            return -1;
+        if (n == 0)
+            break;
+        total += n;
+    }
+    return total;
 }

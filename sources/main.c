@@ -2,31 +2,32 @@
 #include "../includes/AESEncrypt.h"
 #include "../includes/AESDecrypt.h"
 
-#include "../includes/main.h"
-#include "../includes/AESEncrypt.h"
-#include "../includes/AESDecrypt.h"
-
 size_t ft_strlen(char *str) {
     if (!str)
         return (0);
-    int i = 0;
-    while (str && str[i])
+    size_t i = 0;
+    while (str[i])
         i++;
     return (i);
 }
 
-uint8_t hex_char_to_val(char c) {
+int hex_char_to_val(char c) {
     if (c >= '0' && c <= '9') return c - '0';
     if (c >= 'a' && c <= 'f') return c - 'a' + 10;
     if (c >= 'A' && c <= 'F') return c - 'A' + 10;
-    return 0;
+    return -1;
 }
 
-void parse_hex_key(const char *hex_string, uint8_t key[16]) {
+int parse_hex_key(const char *hex_string, uint8_t key[16]) {
     for (int i = 0; i < 16; i++) {
-        key[i] = (hex_char_to_val(hex_string[2 * i]) << 4) | 
-                  hex_char_to_val(hex_string[2 * i + 1]);
+        int high = hex_char_to_val(hex_string[2 * i]);
+        int low = hex_char_to_val(hex_string[2 * i + 1]);
+
+        if (high < 0 || low < 0)
+            return 0;
+        key[i] = (high << 4) | low;
     }
+    return 1;
 }
 
 int generate_random_iv(uint8_t iv[16]) {
@@ -62,7 +63,10 @@ int main(int argc, char **argv) {
     }
 
     uint8_t key[16];
-    parse_hex_key(argv[3], key);
+    if (!parse_hex_key(argv[3], key)) {
+        printf("Error : Key must only contain hexadecimal characters.\n");
+        return 1;
+    }
     
     char arg = argv[1][1];
     char *filename = argv[2];
@@ -81,6 +85,7 @@ int main(int argc, char **argv) {
             printf("Cipher done.\n");
         } else {
             printf("Error when ciphering file.\n");
+            return 1;
         }
     } else if (arg == 'd') {
 
@@ -91,6 +96,7 @@ int main(int argc, char **argv) {
         } 
         else {
             printf("Error when deciphering file.\n");
+            return 1;
         }
     }
 

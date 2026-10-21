@@ -37,12 +37,13 @@ MKDIR           =   @mkdir -vp
 RM              =   @rm -vrf
 
 NAME            =   AES
+KEYGEN          =   keygen
 
 #####################
 ######  RULES  ######
 #####################
 
-all: $(NAME)
+all: $(NAME) $(KEYGEN)
 
 -include $(DEPS)
 
@@ -53,11 +54,14 @@ ${OBJ_DIR}/%.o: ${SRC_DIR}/%.c
 	$(MKDIR) $(dir $@) $(dir $(DEP_DIR)/$*.d)
 	$(CC) $(CFLAGS) -I$(INC_DIR) -c $< -o $@ -MF $(DEP_DIR)/$*.d
 
+$(KEYGEN): keygen.c
+	$(CC) -Wall -Wextra -Werror $< -o $@
+
 clean:
 	$(RM) $(BUILD_DIR)
 
 fclean: clean
-	$(RM) $(NAME)
+	$(RM) $(NAME) $(KEYGEN)
 
 re: fclean all
 

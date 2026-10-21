@@ -1,32 +1,33 @@
 #include "../includes/AESEncrypt.h"
 #include "../includes/AESFunctions.h"
 
-void AESCipher(uint8_t state[16], const uint8_t k[16]) {
+static void AESCipher(uint8_t state[16], const uint8_t *round_keys) {
 
-	uint8_t word[176];
-
-	//print_key(k);
-
-	KeyExpansion(k, word);
-
-	//print_round_keys(word);
-
-	AddRoundKey(state, &word[0]);
+	AddRoundKey(state, &round_keys[0]);
 
 	for (int i = 1; i <= 9; i++) {
 		SubBytes(state);
 	 	ShiftRows(state);
 	 	MixColumns(state);
-	 	AddRoundKey(state, &word[i * 16]);
+	 	AddRoundKey(state, &round_keys[i * 16]);
 	}
 
 	SubBytes(state);
 	ShiftRows(state);
-	AddRoundKey(state, &word[10 * 16]);
+	AddRoundKey(state, &round_keys[10 * 16]);
+}
+
+static int encrypt_fail(int in_fd, int out_fd, const char *out_filename, const char *msg) {
+    if (msg)
+        perror(msg);
+    close(in_fd);
+    close(out_fd);
+    unlink(out_filename);
+    return 0;
 }
 
 int encrypt_file_cbc(const char *in_filename, const char *out_filename, const uint8_t key[16], const uint8_t iv_in[16]) {
-    
+
 	int in_fd = open(in_filename, O_RDONLY);
     if (in_fd < 0) {
         perror("Error opening input file");
@@ -40,33 +41,34 @@ int encrypt_file_cbc(const char *in_filename, const char *out_filename, const ui
         return 0;
     }
 
+    uint8_t round_keys[176];
+    KeyExpansion(key, round_keys);
+
     uint8_t current_iv[16];
     for (int i = 0; i < 16; i++) {
         current_iv[i] = iv_in[i];
     }
 
-	write(out_fd, current_iv, 16);
-    
+	if (write(out_fd, current_iv, 16) != 16)
+        return encrypt_fail(in_fd, out_fd, out_filename, "Error writing output file");
+
 	uint8_t buffer[16];
     ssize_t bytes_read;
 
-    while ((bytes_read = read(in_fd, buffer, 16)) == 16) {
+    while ((bytes_read = read_block(in_fd, buffer)) == 16) {
         xor_block(buffer, current_iv);
-        AESCipher(buffer, key);
-        
-		write(out_fd, buffer, 16);        
-        
+        AESCipher(buffer, round_keys);
+
+		if (write(out_fd, buffer, 16) != 16)
+            return encrypt_fail(in_fd, out_fd, out_filename, "Error writing output file");
+
 		for (int i = 0; i < 16; i++) {
             current_iv[i] = buffer[i];
         }
     }
 
-	if (bytes_read < 0) {
-        perror("Error reading input file");
-        close(in_fd);
-        close(out_fd);
-        return 0;
-    }
+	if (bytes_read < 0)
+        return encrypt_fail(in_fd, out_fd, out_filename, "Error reading input file");
 
     uint8_t pad_val = 16 - bytes_read;
     for (ssize_t i = bytes_read; i < 16; i++) {
@@ -74,13 +76,12 @@ int encrypt_file_cbc(const char *in_filename, const char *out_filename, const ui
     }
 
     xor_block(buffer, current_iv);
-    AESCipher(buffer, key);
-    write(out_fd, buffer, 16);
+    AESCipher(buffer, round_keys);
+    if (write(out_fd, buffer, 16) != 16)
+        return encrypt_fail(in_fd, out_fd, out_filename, "Error writing output file");
 
     close(in_fd);
     close(out_fd);
-    
-    return 1;
-    
+
     return 1;
 }
